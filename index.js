@@ -121,9 +121,10 @@ async function clickContact(page, contactName) {
             console.log(`Trying to find contact with selector: ${selector}`);
             const element = await page.$(selector);
             if (element) {
-                await element.click();
-                console.log(`✓ Contact clicked with selector: ${selector}`);
-                return true;
+            await element.click();
+            console.log(`✓ Contact clicked with selector: ${selector}`);
+            console.log(`LABEL: Contact selector used: ${selector}`);
+            return true;
             }
         } catch (error) {
             console.log(`✗ Contact selector failed: ${selector}`);
@@ -299,6 +300,9 @@ async function main() {
         
         await delay(2000);
 
+
+        /*
+
         const contactName = 'Test';
         console.log(`Looking for contact: ${contactName}`);
         
@@ -334,16 +338,21 @@ async function main() {
         // Send the message (press Enter)
         await page.keyboard.press('Enter');
         console.log('✓ Message sent!');
+        */
+
 
         // ===================================================================
         // =================== CHAMADA DA NOVA FUNÇÃO ========================
         // ===================================================================
         // Espera um pouco para a mensagem enviada aparecer no chat
+
+        await selector(page);
         await delay(2000);
         
         // Lê e exibe todas as mensagens do chat aberto
+
         await readChatMessages(page);
-        // ===================================================================
+        // ==================================================================
         
         console.log('Script finished successfully. Closing browser...');
         await browser.close();
@@ -353,6 +362,39 @@ async function main() {
         if (browser) {
             await browser.close(); // Garante que o navegador feche em caso de erro
         }
+    }
+}
+
+async function selector(page){
+    const todosOsSpans = await page.$$('span._ao3e');
+
+    const todosOsTimes = await page.$$('span._ak8i');
+
+    const queue = [];
+    for (const timeHandle of todosOsTimes) {
+        const hora = await timeHandle.evaluate(el => el.textContent);
+        queue.push(hora);
+    }
+
+    /*
+    while (queue.length > 0) {
+    const item = queue.shift(); // Remove o primeiro item
+    console.log('Processando:', item);
+    }
+    */
+
+    const timer = 0;
+    let timeText = queue.shift(); // Remove o primeiro item
+    console.log('Tamanho da queue:', queue.length);
+
+    for (const spanHandle of todosOsSpans) {
+        if(timer == 2){
+            timeText = queue.shift(); // Remove o primeiro item
+        }
+        const texto = await spanHandle.evaluate(el => el.textContent);
+        const titulo = await spanHandle.evaluate(el => el.getAttribute('title'));
+        console.log(`Encontrado: Título="${titulo}", Texto="${texto}, Hora="${timeText}"`);
+        timer ++;
     }
 }
 
