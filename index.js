@@ -174,12 +174,60 @@ async function waitForChatToOpen(page) {
     throw new Error('Could not find chat input field');
 }
 
+// ===================================================================
+// =================== NOVA FUNÇÃO ADICIONADA ========================
+// ===================================================================
+/**
+ * Reads and prints all messages from the currently open chat.
+ * @param {import('puppeteer').Page} page The Puppeteer page object.
+ */
+async function readChatMessages(page) {
+    console.log('\n-----------------------------------');
+    console.log('--- Reading Messages from Chat ---');
+    console.log('-----------------------------------');
+    try {
+        // A robust selector for the element containing the message text
+        const messageTextSelector = 'span.selectable-text.copyable-text';
+        
+        // Wait for at least one message element to be present in the chat
+        await page.waitForSelector(messageTextSelector, { timeout: 10000 });
+        await delay(1000); // A small delay to ensure more messages render
+
+        // Use $$eval to grab the text from all message elements at once
+        const messages = await page.$$eval(messageTextSelector, (elements) => {
+            // Map each element to its text content
+            return elements.map(el => el.textContent);
+        });
+        
+        if (messages.length > 0) {
+            messages.forEach((msg, index) => {
+                // Print each message with a simple format
+                console.log(`[Message ${index + 1}]: ${msg}`);
+            });
+        } else {
+            console.log('No messages could be read from the chat.');
+        }
+        
+    } catch (error) {
+        console.error('Error reading chat messages:', error.message);
+    } finally {
+        console.log('-----------------------------------');
+        console.log('---  Finished Reading Messages  ---');
+        console.log('-----------------------------------\n');
+    }
+}
+// ===================================================================
+// ================= FIM DA NOVA FUNÇÃO ==============================
+// ===================================================================
+
+
 async function main() {
+    let browser;
     try{
         console.log('Starting WhatsApp Web automation with persistent session...');
         
         // Launch browser with persistent user data directory
-        const browser = await puppeteer.launch({ 
+        browser = await puppeteer.launch({ 
             headless: false,
             userDataDir: sessionDir, // This makes the session persistent
             args: [
@@ -232,10 +280,10 @@ async function main() {
                     // Wait for login to complete
                     await page.waitForFunction(() => {
                         return document.querySelector('[data-testid="chat-list"]') || 
-                               document.querySelector('div[id="pane-side"]') ||
-                               document.querySelector('[aria-label*="Chat list"]') ||
-                               document.querySelector('header[data-testid="chatlist-header"]') ||
-                               document.body.innerText.toLowerCase().includes('chat');
+                                document.querySelector('div[id="pane-side"]') ||
+                                document.querySelector('[aria-label*="Chat list"]') ||
+                                document.querySelector('header[data-testid="chatlist-header"]') ||
+                                document.body.innerText.toLowerCase().includes('chat');
                     }, { timeout: 120000 }); // Wait up to 2 minutes for login
                     
                     console.log('✓ Login successful! Session will be saved for next time.');
@@ -251,15 +299,15 @@ async function main() {
         
         await delay(2000);
 
-        const contactName = 'Dedi';
+        const contactName = 'Test';
         console.log(`Looking for contact: ${contactName}`);
         
         // Wait for WhatsApp to fully load and try multiple selectors for contact
         await page.waitForFunction(() => {
             return document.querySelector('[data-testid="chat-list"]') || 
-                   document.querySelector('[aria-label*="Chat list"]') ||
-                   document.querySelector('div[id="pane-side"]') ||
-                   document.querySelector('span[title]');
+                    document.querySelector('[aria-label*="Chat list"]') ||
+                    document.querySelector('div[id="pane-side"]') ||
+                    document.querySelector('span[title]');
         }, { timeout: 15000 });
         
         await delay(2000);
@@ -277,7 +325,6 @@ async function main() {
         const editor = await page.$(inputSelector);
         await editor.focus();
 
-        const amountOfMessages = 100;
         const message = 'Hello, this is a test message!';
         
         console.log('Typing message...');
@@ -288,8 +335,24 @@ async function main() {
         await page.keyboard.press('Enter');
         console.log('✓ Message sent!');
 
+        // ===================================================================
+        // =================== CHAMADA DA NOVA FUNÇÃO ========================
+        // ===================================================================
+        // Espera um pouco para a mensagem enviada aparecer no chat
+        await delay(2000);
+        
+        // Lê e exibe todas as mensagens do chat aberto
+        await readChatMessages(page);
+        // ===================================================================
+        
+        console.log('Script finished successfully. Closing browser...');
+        await browser.close();
+
     } catch (error) {
         console.error(error);
+        if (browser) {
+            await browser.close(); // Garante que o navegador feche em caso de erro
+        }
     }
 }
 
@@ -342,8 +405,5 @@ if (require.main === module) {
     }
     
     // Run main function
-    main().catch(console.error);
-} else {
-    // If imported as module, just run main
     main().catch(console.error);
 }
