@@ -1,0 +1,26 @@
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "description": "Bot para WhatsApp Web usando Puppeteer",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "clear-session": "node index.js --clear-session",
+    "check-session": "node index.js --check-session"
+  },
+  "keywords": [
+    "whatsapp",
+    "puppeteer",
+    "bot",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "fs-extra": "^11.1.1",
+    "puppeteer": "^24.23.0",
+    "qrcode-terminal": "^0.12.0",
+    "readline-sync": "^1.4.10"
+  }
+}
