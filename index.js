@@ -346,14 +346,22 @@ async function main() {
         // ===================================================================
         // Espera um pouco para a mensagem enviada aparecer no chat
 
-        await selector(page);
-        await delay(2000);
+        let ListContatos = await selector(page);
         
-        // Lê e exibe todas as mensagens do chat aberto
+        //Requestar do BCD os contatos em ordem, visando a necessidade de acessar e dar gather nas mensagens
 
+        
+
+
+        await delay(3000);
+        
+        /*
+        // Lê e exibe todas as mensagens do chat aberto
+        
         await readChatMessages(page);
         // ==================================================================
-        
+        */
+
         console.log('Script finished successfully. Closing browser...');
         await browser.close();
 
@@ -366,36 +374,46 @@ async function main() {
 }
 
 async function selector(page){
+    
     const todosOsSpans = await page.$$('span._ao3e');
+    let i = 0;
+    let nullCount = 0;
 
-    const todosOsTimes = await page.$$('span._ak8i');
+    let Titulo = '';
+    let Texto = '';
+    let contato = '';
+    let isGroup = false;
 
-    const queue = [];
-    for (const timeHandle of todosOsTimes) {
-        const hora = await timeHandle.evaluate(el => el.textContent);
-        queue.push(hora);
-    }
-
-    /*
-    while (queue.length > 0) {
-    const item = queue.shift(); // Remove o primeiro item
-    console.log('Processando:', item);
-    }
-    */
-
-    const timer = 0;
-    let timeText = queue.shift(); // Remove o primeiro item
-    console.log('Tamanho da queue:', queue.length);
 
     for (const spanHandle of todosOsSpans) {
-        if(timer == 2){
-            timeText = queue.shift(); // Remove o primeiro item
-        }
         const texto = await spanHandle.evaluate(el => el.textContent);
         const titulo = await spanHandle.evaluate(el => el.getAttribute('title'));
-        console.log(`Encontrado: Título="${titulo}", Texto="${texto}, Hora="${timeText}"`);
-        timer ++;
+
+        if(titulo == "null" || titulo == null || titulo == undefined){
+            nullCount++;
+        }else{
+            nullCount = 0;
+            console.log(`Encontrado: Título="${Titulo}", Contato="${contato}", Texto="${Texto}"`);
+            contato = '';
+            Texto = '';
+        }
+        switch (nullCount) {
+            case 0:
+                Titulo = texto;
+                break;
+            case 1:
+                Texto = texto;
+                break;
+            case 2:
+                contato = Texto;
+                Texto = texto;
+                break;
+        }
+        i++;
+        if(i == 54) break;
     }
+    console.log(`Encontrado: Título="${Titulo}", Texto="${Texto}", Contato="${contato}"`);
+    return todosOsSpans;
 }
 
 function delay(time) {
