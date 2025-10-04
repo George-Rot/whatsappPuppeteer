@@ -2,6 +2,10 @@ const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
 
+let grupChat = [];
+let contactChat = [];
+
+
 // Create session directory if it doesn't exist
 const sessionDir = path.join(__dirname, 'whatsapp-session');
 if (!fs.existsSync(sessionDir)) {
@@ -362,6 +366,9 @@ async function main() {
         // ==================================================================
         */
 
+        console.log(`grupChat size: ${grupChat.length}`);
+        console.log(`contactChat size: ${contactChat.length}`);
+
         console.log('Script finished successfully. Closing browser...');
         await browser.close();
 
@@ -382,18 +389,24 @@ async function selector(page){
     let Titulo = '';
     let Texto = '';
     let contato = '';
-    let isGroup = false;
 
 
     for (const spanHandle of todosOsSpans) {
         const texto = await spanHandle.evaluate(el => el.textContent);
         const titulo = await spanHandle.evaluate(el => el.getAttribute('title'));
 
-        if(titulo == "null" || titulo == null || titulo == undefined){
+
+        if(titulo == "null" || titulo == null || titulo == undefined){ // contatos que mandaram mensgens em grupos e mensagem tem o mesmo cabecalho : null
             nullCount++;
         }else{
             nullCount = 0;
             console.log(`Encontrado: Título="${Titulo}", Contato="${contato}", Texto="${Texto}"`);
+            if(contato == ''){
+                contactChat.push({ title: Titulo, text: Texto });
+            }else{
+                grupChat.push({ title: Titulo, contact: contato, text: Texto });
+            }
+
             contato = '';
             Texto = '';
         }
@@ -405,7 +418,7 @@ async function selector(page){
                 Texto = texto;
                 break;
             case 2:
-                contato = Texto;
+                contato = Texto; //se ele achou 2 nulls seguidos, o texto anterior é o contato e trata-se de um
                 Texto = texto;
                 break;
         }
