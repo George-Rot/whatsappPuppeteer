@@ -1,9 +1,15 @@
-const puppeteer = require('puppeteer');
-const path = require('path');
-const fs = require('fs');
+import puppeteer from 'puppeteer';
+import path from 'path';
+import fs from 'fs';
+import fsExtra from 'fs-extra';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let grupChat = [];
 let contactChat = [];
+const userEmail = ''; // Colocar email do usuario aqui    
 
 
 // Create session directory if it doesn't exist
@@ -221,6 +227,103 @@ async function readChatMessages(page) {
         console.log('-----------------------------------\n');
     }
 }
+
+async function selector(page){
+    
+    const todosOsSpans = await page.$$('span._ao3e');
+    let i = 0;
+    let nullCount = 0;
+
+    let Titulo = '';
+    let Texto = '';
+    let contato = '';
+
+
+    for (const spanHandle of todosOsSpans) {
+        const texto = await spanHandle.evaluate(el => el.textContent);
+        const titulo = await spanHandle.evaluate(el => el.getAttribute('title'));
+
+
+        if(titulo == "null" || titulo == null || titulo == undefined){ // contatos que mandaram mensgens em grupos e mensagem tem o mesmo cabecalho : null
+            nullCount++;
+        }else{
+            nullCount = 0;
+            console.log(`Encontrado: Título="${Titulo}", Contato="${contato}", Texto="${Texto}"`);
+            if(contato == ''){
+                contactChat.push({ title: Titulo, text: Texto });
+            }else{
+                grupChat.push({ title: Titulo, contact: contato, text: Texto });
+            }
+
+            contato = '';
+            Texto = '';
+        }
+        switch (nullCount) {
+            case 0:
+                Titulo = texto;
+                break;
+            case 1:
+                Texto = texto;
+                break;
+            case 2:
+                contato = Texto; //se ele achou 2 nulls seguidos, o texto anterior é o contato e trata-se de um
+                Texto = texto;
+                break;
+        }
+        i++;
+        if(i == 54) break;
+    }
+    console.log(`Encontrado: Título="${Titulo}", Texto="${Texto}", Contato="${contato}"`);
+    return todosOsSpans;
+}
+
+function delay(time) {
+    return new Promise(function(resolve) { 
+        setTimeout(resolve, time)
+    });
+}
+
+// Function to clear session (logout)
+function clearSession() {
+    try {
+        if (fsExtra.existsSync(sessionDir)) {
+            fsExtra.removeSync(sessionDir);
+            console.log('✓ Session cleared successfully');
+        } else {
+            console.log('No session found to clear');
+        }
+    } catch (error) {
+        console.error('Error clearing session:', error);
+    }
+}
+
+// Function to check if session exists
+function hasSession() {
+    return fs.existsSync(sessionDir) && fs.readdirSync(sessionDir).length > 0;
+}
+// Export functions for use in other files (ESM)
+export { main, clearSession, hasSession };
+
+// ESM-compatible entrypoint: execute main when this file is run directly
+const entryScript = fileURLToPath(import.meta.url);
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(entryScript)) {
+    const args = process.argv.slice(2);
+    
+    if (args.includes('--clear-session')) {
+        console.log('Clearing session...');
+        clearSession();
+        process.exit(0);
+    }
+    
+    if (args.includes('--check-session')) {
+        console.log('Session exists:', hasSession());
+        process.exit(0);
+    }
+    
+    // Run main function
+    main().catch(console.error);
+}
+
 // ===================================================================
 // ================= FIM DA NOVA FUNÇÃO ==============================
 // ===================================================================
@@ -349,15 +452,16 @@ async function main() {
         // =================== CHAMADA DA NOVA FUNÇÃO ========================
         // ===================================================================
         // Espera um pouco para a mensagem enviada aparecer no chat
+        
 
-        let ListContatos = await selector(page);
+        //let ListContatos = await selector(page);
         
         //Requestar do BCD os contatos em ordem, visando a necessidade de acessar e dar gather nas mensagens
 
         
 
 
-        await delay(3000);
+        //await delay(3000);
         
         /*
         // Lê e exibe todas as mensagens do chat aberto
@@ -366,11 +470,45 @@ async function main() {
         // ==================================================================
         */
 
+        /*
         console.log(`grupChat size: ${grupChat.length}`);
         console.log(`contactChat size: ${contactChat.length}`);
 
         console.log('Script finished successfully. Closing browser...');
         await browser.close();
+        */
+        // Try to fetch clients from bancoDeDados; pass a userNumber if available
+        try {
+            const apiUrl = `http://localhost:3000/api/clients/owner/${encodeURIComponent(userEmail)}`;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+            console.log(`Fetching clients from: ${apiUrl}`);
+            const res = await fetch(apiUrl, { signal: controller.signal });
+            clearTimeout(timeout);
+
+            if (!res.ok) {
+                throw new Error(`Failed to fetch clients. HTTP ${res.status} - ${res.statusText}`);
+            }
+
+            const clientsJson = await res.json();
+            console.log('✓ Clients JSON fetched successfully');
+
+            // Expose or use the clients list as needed
+            const ListContatos = Array.isArray(clientsJson) ? clientsJson : [clientsJson];
+            console.log(`Found ${ListContatos.length} clients`);
+            // opcional: imprimir resumo dos clients
+            ListContatos.forEach((c, i) => console.log(`#${i + 1}:`, c));
+
+            // você pode usar ListContatos abaixo para navegar/abrir chats, etc.
+
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.error('Request timed out while fetching clients');
+            } else {
+                console.error('Error fetching clients:', error.message);
+            }
+        }
 
     } catch (error) {
         console.error(error);
@@ -380,103 +518,3 @@ async function main() {
     }
 }
 
-async function selector(page){
-    
-    const todosOsSpans = await page.$$('span._ao3e');
-    let i = 0;
-    let nullCount = 0;
-
-    let Titulo = '';
-    let Texto = '';
-    let contato = '';
-
-
-    for (const spanHandle of todosOsSpans) {
-        const texto = await spanHandle.evaluate(el => el.textContent);
-        const titulo = await spanHandle.evaluate(el => el.getAttribute('title'));
-
-
-        if(titulo == "null" || titulo == null || titulo == undefined){ // contatos que mandaram mensgens em grupos e mensagem tem o mesmo cabecalho : null
-            nullCount++;
-        }else{
-            nullCount = 0;
-            console.log(`Encontrado: Título="${Titulo}", Contato="${contato}", Texto="${Texto}"`);
-            if(contato == ''){
-                contactChat.push({ title: Titulo, text: Texto });
-            }else{
-                grupChat.push({ title: Titulo, contact: contato, text: Texto });
-            }
-
-            contato = '';
-            Texto = '';
-        }
-        switch (nullCount) {
-            case 0:
-                Titulo = texto;
-                break;
-            case 1:
-                Texto = texto;
-                break;
-            case 2:
-                contato = Texto; //se ele achou 2 nulls seguidos, o texto anterior é o contato e trata-se de um
-                Texto = texto;
-                break;
-        }
-        i++;
-        if(i == 54) break;
-    }
-    console.log(`Encontrado: Título="${Titulo}", Texto="${Texto}", Contato="${contato}"`);
-    return todosOsSpans;
-}
-
-function delay(time) {
-    return new Promise(function(resolve) { 
-        setTimeout(resolve, time)
-    });
-}
-
-// Function to clear session (logout)
-function clearSession() {
-    const fs = require('fs-extra');
-    try {
-        if (fs.existsSync(sessionDir)) {
-            fs.removeSync(sessionDir);
-            console.log('✓ Session cleared successfully');
-        } else {
-            console.log('No session found to clear');
-        }
-    } catch (error) {
-        console.error('Error clearing session:', error);
-    }
-}
-
-// Function to check if session exists
-function hasSession() {
-    return fs.existsSync(sessionDir) && fs.readdirSync(sessionDir).length > 0;
-}
-
-// Export functions for use in other files
-module.exports = {
-    main,
-    clearSession,
-    hasSession
-};
-
-// Add command line arguments support
-if (require.main === module) {
-    const args = process.argv.slice(2);
-    
-    if (args.includes('--clear-session')) {
-        console.log('Clearing session...');
-        clearSession();
-        process.exit(0);
-    }
-    
-    if (args.includes('--check-session')) {
-        console.log('Session exists:', hasSession());
-        process.exit(0);
-    }
-    
-    // Run main function
-    main().catch(console.error);
-}
