@@ -274,7 +274,6 @@ async function selector(page){
         if(i == 54) break;
     }
     console.log(`Encontrado: Título="${Titulo}", Texto="${Texto}", Contato="${contato}"`);
-    return todosOsSpans;
 }
 
 function delay(time) {
@@ -330,6 +329,44 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(entryScrip
 
 
 async function main() {
+    //antes de tudo captura os dados do banco de dados:
+    // Lista de contatos do banco (declarada aqui para escopo da função main)
+    let ListContatos = [];
+            try {
+            const apiUrl = `http://localhost:3000/api/clients/owner/${encodeURIComponent(userEmail)}`;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+            console.log(`Fetching clients from: ${apiUrl}`);
+            const res = await fetch(apiUrl, { signal: controller.signal });
+            clearTimeout(timeout);
+
+            if (!res.ok) {
+                throw new Error(`Failed to fetch clients. HTTP ${res.status} - ${res.statusText}`);
+            }
+
+            const clientsJson = await res.json();
+            console.log('✓ Clients JSON fetched successfully');
+
+            // Expose or use the clients list as needed
+            ListContatos = Array.isArray(clientsJson) ? clientsJson : [clientsJson];
+            console.log(`Found ${ListContatos.length} clients`);
+            // opcional: imprimir resumo dos clients
+            ListContatos.forEach((c, i) => console.log(`#${i + 1}:`, c));
+
+            // você pode usar ListContatos abaixo para navegar/abrir chats, etc.
+
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.error('Request timed out while fetching clients');
+            } else {
+                console.error('Error fetching clients:', error.message);
+            }
+        }
+        //usar list contatos como referencia para checar as mensagens atuais
+
+
+
     let browser;
     try{
         console.log('Starting WhatsApp Web automation with persistent session...');
@@ -454,61 +491,71 @@ async function main() {
         // Espera um pouco para a mensagem enviada aparecer no chat
         
 
-        //let ListContatos = await selector(page);
-        
-        //Requestar do BCD os contatos em ordem, visando a necessidade de acessar e dar gather nas mensagens
-
+        await selector(page);
         
 
-
-        //await delay(3000);
         
-        /*
+
+
+        await delay(3000);
+        
         // Lê e exibe todas as mensagens do chat aberto
         
         await readChatMessages(page);
-        // ==================================================================
-        */
+        // =============================
 
-        /*
+        // iterar sobre os contatos e descobrir se eles estao presentes no banco de dados ou nao
+        for (const contato of contactChat) {
+            let found = false; // reset por contato
+            for (const client of ListContatos) {
+                if (contato.title === client.name) {
+                    console.log(`Contato encontrado no banco de dados: ${contato.title}`);
+                    // aqui você pode adicionar lógica adicional, como enviar uma mensagem automática, etc.
+                    found = true;
+                    break; // Sai do loop interno se o contato for encontrado
+                }
+            }
+
+            if (!found) {
+                console.log(`Contato NÃO encontrado no banco de dados: ${contato.title}`);
+                const apiUrl = `http://localhost:3000/api/clients/post`;
+                try {
+                    const payload = {
+                        name: contato.title,
+                        ownerEmail: userEmail,
+                        note: 'Lead novo',
+                        status: 'waiting'
+                    };
+
+                    const res = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!res.ok) {
+                        throw new Error(`Failed to create client. HTTP ${res.status} - ${res.statusText}`);
+                    }
+
+                    console.log(`✓ Novo cliente criado no banco de dados: ${contato.title}`);
+                    // opcional: adicionar ao ListContatos para evitar recriar em execucoes futuras
+                    ListContatos.push({ name: contato.title, ...payload });
+                } catch (error) {
+                    console.error('Error creating new client:', error.message);
+                }
+            }
+        }
+
+
+
+
+
         console.log(`grupChat size: ${grupChat.length}`);
         console.log(`contactChat size: ${contactChat.length}`);
 
         console.log('Script finished successfully. Closing browser...');
         await browser.close();
-        */
-        // Try to fetch clients from bancoDeDados; pass a userNumber if available
-        try {
-            const apiUrl = `http://localhost:3000/api/clients/owner/${encodeURIComponent(userEmail)}`;
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-            console.log(`Fetching clients from: ${apiUrl}`);
-            const res = await fetch(apiUrl, { signal: controller.signal });
-            clearTimeout(timeout);
-
-            if (!res.ok) {
-                throw new Error(`Failed to fetch clients. HTTP ${res.status} - ${res.statusText}`);
-            }
-
-            const clientsJson = await res.json();
-            console.log('✓ Clients JSON fetched successfully');
-
-            // Expose or use the clients list as needed
-            const ListContatos = Array.isArray(clientsJson) ? clientsJson : [clientsJson];
-            console.log(`Found ${ListContatos.length} clients`);
-            // opcional: imprimir resumo dos clients
-            ListContatos.forEach((c, i) => console.log(`#${i + 1}:`, c));
-
-            // você pode usar ListContatos abaixo para navegar/abrir chats, etc.
-
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                console.error('Request timed out while fetching clients');
-            } else {
-                console.error('Error fetching clients:', error.message);
-            }
-        }
 
     } catch (error) {
         console.error(error);
